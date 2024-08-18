@@ -60,13 +60,21 @@ def calculateDetails(doc, tree, scale_factor):
     max_x = box.extmax[0]
     min_y = box.extmin[1]
     max_y = box.extmax[1]
+    line_points = []
+    pierceCount = 0
     for entity in msp:
+        pierce_process = False
+        start_point = None
+        end_point = None
         perimeter = 0
         if entity.dxftype() == 'LINE':
             start = entity.dxf.start
             end = entity.dxf.end
             perimeter = math.sqrt((end.x - start.x) ** 2 + (end.y - start.y) ** 2)
+            start_point = start
+            end_point = end
         elif entity.dxftype() == 'CIRCLE':
+            pierce_process = True
             radius = entity.dxf.radius
             perimeter = 2 * math.pi * radius
         elif entity.dxftype() == 'ARC':
@@ -77,23 +85,46 @@ def calculateDetails(doc, tree, scale_factor):
             if angle < 0:
                 angle += 2 * math.pi
             perimeter = radius * angle
-        elif entity.dxftype() in ['LWPOLYLINE', 'POLYLINE']:
             path = ezdxf.path.make_path(entity)
             vertices = list(path.flattening(0.01))
-            polygon = shapely.geometry.Polygon(vertices)
-            area = polygon.area
-            perimeter = polygon.length
-            print(f"Area = {area:.3f}, Perimeter = {perimeter:.3f}")
-            
+            start_point = vertices[0]
+            end_point = vertices[-1]
+        elif entity.dxftype() in ['LWPOLYLINE', 'POLYLINE','SPLINE','ELLIPSE']:
+            path = ezdxf.path.make_path(entity)
+            vertices = list(path.flattening(0.01))
+            line_walk_parimeter = 0
+            for i in range(len(vertices)-1):
+                line_walk_parimeter += math.sqrt((vertices[i+1][0] - vertices[i][0]) ** 2 + (vertices[i+1][1] - vertices[i][1]) ** 2)
+            perimeter = line_walk_parimeter
+            start_point = vertices[0]
+            end_point = vertices[-1]
+        if(not pierce_process):
+            print(f"{entity.dxftype()},start,{start_point[0]},{start_point[1]}")
+            print(f"{entity.dxftype()},end,{end_point[0]},{end_point[1]}")
+            line_points.append(start_point)
+            line_points.append(end_point)
+
+        pierceCount += 1
         # Convert perimeter to millimeters
         perimeter_mm = perimeter * UNIT_TO_MM
         perimeters.append({'type': entity.dxftype(), 'perimeter_mm': perimeter_mm})
-    
+
+    # sort the points by x then y
+    line_points.sort(key=lambda x: (x[0], x[1]))
+
+    #subtract 1 from the pieceCount for each pair of points that match with in .01 x and .01 y
+    i = 0
+    while i < len(line_points) - 1:
+        if (abs(line_points[i][0] - line_points[i+1][0]) < .01 and abs(line_points[i][1] - line_points[i+1][1]) < .01):
+            pierceCount -= 1
+            del line_points[i]
+            del line_points[i]
+        else:
+            i += 1
+
+
+
     totalPerimeter = 0
-    pierceCount = 0
-    for p in perimeters:
-        pierceCount += 1
-        totalPerimeter += p['perimeter_mm']
     
     # Calculate width and height
     width = max_x - min_x
