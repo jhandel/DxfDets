@@ -98,6 +98,9 @@ def calculateDetails(doc, tree, scale_factor):
             perimeter = line_walk_parimeter
             start_point = vertices[0]
             end_point = vertices[-1]
+
+            if(abs(start_point[0] - end_point[0]) <= 0.01 and abs(start_point[1] - end_point[1]) <= 0.01):
+                pierce_process = True
         if(not pierce_process):
             print(f"{entity.dxftype()},start,{start_point[0]},{start_point[1]}")
             print(f"{entity.dxftype()},end,{end_point[0]},{end_point[1]}")
@@ -125,6 +128,8 @@ def calculateDetails(doc, tree, scale_factor):
 
 
     totalPerimeter = 0
+    for p in perimeters:
+        totalPerimeter += p['perimeter_mm']
     
     # Calculate width and height
     width = max_x - min_x
